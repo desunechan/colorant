@@ -127,6 +127,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     println!("[SYSTEM] Starting FOV preview window...");
     match colorant_rust::run_fov_window_blocking(frame_handle) {    
-    Ok(_) => println!("[FOV] Window closed normally"),
-    Err(e) => eprintln!("[FOV] Window error: {}", e),
+        Ok(_) => println!("[FOV] Window closed normally"),
+        Err(e) => eprintln!("[FOV] Window error: {}", e),
+    }
+    // Wait a bit before exiting
+    sleep(Duration::from_secs(1)).await;
+    
+    println!("[SYSTEM] Shutting down...");
+    
+    Ok(())
 }
