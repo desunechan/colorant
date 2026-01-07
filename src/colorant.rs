@@ -81,6 +81,10 @@ impl ColorantEngine {
         
         Ok(engine)
     }
+
+    pub fn get_capture_frame_handle(&self) -> Arc<Mutex<Option<RgbImage>>> {
+        self.capture.get_frame_handle() // Assumes `capture` field exists
+    }
     
     pub fn toggle(&mut self) -> bool {
         self.toggled = !self.toggled;

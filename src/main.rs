@@ -5,6 +5,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::System::Console::*;
+use colorant_rust::spawn_fov_window;
 use log::LevelFilter;
 
 // Hide console window
@@ -64,6 +65,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Create engine
     let engine = Arc::new(Mutex::new(ColorantEngine::new(config).await?));
+
+    let frame_handle = {
+        // If you have direct access to capture:
+        // capture.get_frame_handle()
+        
+        // If capture is inside engine:
+        let engine_lock = engine.lock().await;
+        engine_lock.get_capture_frame_handle() // You'll need to add this method
+    };
+    
+    spawn_fov_window(frame_handle);
     
     println!("\n🎯 COLORANT SYSTEM ACTIVE");
     println!("=========================");

@@ -57,6 +57,10 @@ impl Capture {
         Ok(capture)
     }
     
+    pub fn get_frame_handle(&self) -> Arc<Mutex<Option<RgbImage>>> {
+        Arc::clone(&self.latest_frame)
+    }
+    
     pub fn with_fov(x: i32, y: i32, width: u32, height: u32) -> Result<Self> {
         let config = CaptureConfig {
             x,
