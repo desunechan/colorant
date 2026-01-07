@@ -6,10 +6,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use windows::core::PCWSTR;
 use windows::Win32::Graphics::Gdi::{
-    CreateDCW, DeleteDC, BitBlt, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, 
+    CreateDCW, DeleteDC, BitBlt, GetDIBits, BITMAPINFO, BITMAPINFOHEADER,
+    GetDC, ReleaseDC, CreateCompatibleDC,
     RGBQUAD, DIB_RGB_COLORS, SRCCOPY, BI_RGB
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+use windows::Win32::Foundation::{HWND, GetLastError};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CaptureConfig {
@@ -86,8 +88,27 @@ impl Capture {
                 }
                 
                 unsafe {
-                    let hdc_screen = CreateDCW(PCWSTR::null(), PCWSTR::null(), PCWSTR::null(), None);
-                    let hdc_mem = CreateDCW(PCWSTR::null(), PCWSTR::null(), PCWSTR::null(), None);
+                    // Use GetDC instead of CreateDCW for screen capture
+                    use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+                    use windows::Win32::Foundation::HWND;
+                    
+                    let hwnd = HWND(0); // Desktop window
+                    let hdc_screen = GetDC(hwnd);
+                    
+                    if hdc_screen.is_null() {
+                        eprintln!("[CAPTURE] Failed to get screen DC");
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                    
+                    let hdc_mem = windows::Win32::Graphics::Gdi::CreateCompatibleDC(hdc_screen);
+                    
+                    if hdc_mem.is_null() {
+                        eprintln!("[CAPTURE] Failed to create compatible DC");
+                        ReleaseDC(hwnd, hdc_screen);
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
                     
                     // Create bitmap
                     let hbitmap = windows::Win32::Graphics::Gdi::CreateCompatibleBitmap(
@@ -96,11 +117,23 @@ impl Capture {
                         config.height as i32
                     );
                     
+                    if hbitmap.is_null() {
+                        eprintln!("[CAPTURE] Failed to create bitmap");
+                        windows::Win32::Graphics::Gdi::DeleteDC(hdc_mem);
+                        ReleaseDC(hwnd, hdc_screen);
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                    
                     // Select bitmap into memory DC
                     let _old_bitmap = windows::Win32::Graphics::Gdi::SelectObject(hdc_mem, hbitmap);
                     
-                    // Copy screen region
-                    let _ = BitBlt(
+                    // Debug: Print what we're trying to capture
+                    println!("[CAPTURE] Capturing region: x={}, y={}, {}x{}", 
+                        config.x, config.y, config.width, config.height);
+                    
+                    // Copy screen region - FIXED: Use the correct BitBlt function
+                    let success = windows::Win32::Graphics::Gdi::BitBlt(
                         hdc_mem,
                         0,
                         0,
@@ -112,6 +145,11 @@ impl Capture {
                         SRCCOPY
                     );
                     
+                    if !success.as_bool() {
+                        let error = windows::Win32::Foundation::GetLastError();
+                        eprintln!("[CAPTURE] BitBlt failed with error: {:?}", error);
+                    }
+                    
                     // Get bitmap data
                     let mut bmi = BITMAPINFO {
                         bmiHeader: BITMAPINFOHEADER {
@@ -120,7 +158,7 @@ impl Capture {
                             biHeight: -(config.height as i32), // Negative for top-down
                             biPlanes: 1,
                             biBitCount: 24,
-                            biCompression: BI_RGB.0, // Use the constant
+                            biCompression: BI_RGB.0,
                             biSizeImage: 0,
                             biXPelsPerMeter: 0,
                             biYPelsPerMeter: 0,
@@ -132,7 +170,7 @@ impl Capture {
                     
                     let mut buffer = vec![0u8; (config.width * config.height * 3) as usize];
                     
-                    GetDIBits(
+                    let lines_copied = GetDIBits(
                         hdc_mem,
                         hbitmap,
                         0,
@@ -141,6 +179,17 @@ impl Capture {
                         &mut bmi,
                         DIB_RGB_COLORS
                     );
+                    
+                    // Debug: Check if we got data
+                    if lines_copied > 0 {
+                        // Check first pixel
+                        if buffer.len() >= 3 {
+                            println!("[CAPTURE DEBUG] First pixel BGR: ({}, {}, {})", 
+                                buffer[0], buffer[1], buffer[2]);
+                        }
+                    } else {
+                        eprintln!("[CAPTURE] GetDIBits failed, copied {} lines", lines_copied);
+                    }
                     
                     // Convert BGR to RGB
                     let mut rgb_buffer = vec![0u8; (config.width * config.height * 3) as usize];
@@ -153,12 +202,24 @@ impl Capture {
                     // Create image
                     if let Some(image) = RgbImage::from_raw(config.width, config.height, rgb_buffer) {
                         *frame_clone.lock() = Some(image);
+                        
+                        // Debug: Check image stats
+                        let avg_color: (u32, u32, u32) = image.pixels()
+                            .fold((0, 0, 0), |(r, g, b), pixel| 
+                                (r + pixel[0] as u32, g + pixel[1] as u32, b + pixel[2] as u32));
+                        let pixel_count = config.width * config.height;
+                        println!("[CAPTURE DEBUG] Average color: ({}, {}, {})", 
+                            avg_color.0 / pixel_count, 
+                            avg_color.1 / pixel_count, 
+                            avg_color.2 / pixel_count);
+                    } else {
+                        eprintln!("[CAPTURE] Failed to create image from buffer");
                     }
                     
                     // Cleanup
                     windows::Win32::Graphics::Gdi::DeleteObject(hbitmap);
-                    DeleteDC(hdc_mem);
-                    DeleteDC(hdc_screen);
+                    windows::Win32::Graphics::Gdi::DeleteDC(hdc_mem);
+                    ReleaseDC(hwnd, hdc_screen);
                 }
                 
                 std::thread::sleep(Duration::from_millis(10));

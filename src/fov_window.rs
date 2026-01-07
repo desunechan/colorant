@@ -227,11 +227,43 @@ impl eframe::App for FovWindow {
     }
 }
 
-/// Non-blocking version that spawns a thread
+/// Non-blocking version that spawns a thread with any_thread permission
 pub fn spawn_fov_window(latest_frame: Arc<Mutex<Option<RgbImage>>>) {
     std::thread::spawn(move || {
+        // We need to use the any_thread feature for winit
+        use eframe::egui::ViewportBuilder;
+        
+        let options = eframe::NativeOptions {
+            viewport: ViewportBuilder::default()
+                .with_inner_size([800.0, 600.0])
+                .with_min_inner_size([400.0, 300.0])
+                .with_title("🎯 FOV Preview - Colorant Rust")
+                .with_resizable(true)
+                .with_decorations(true),
+            ..Default::default()
+        };
+        
+        // Use the any_thread feature on Windows
+        #[cfg(target_os = "windows")]
+        let options = {
+            use winit::platform::windows::EventLoopBuilderExtWindows;
+            let mut event_loop_builder = winit::event_loop::EventLoopBuilder::new();
+            event_loop_builder.with_any_thread(true);
+            eframe::NativeOptions {
+                event_loop_builder: Some(Box::new(move |builder| {
+                    event_loop_builder.with_any_thread(true);
+                })),
+                ..options
+            }
+        };
+        
         let window = FovWindow::new(latest_frame);
-        if let Err(e) = window.run() {
+        
+        if let Err(e) = eframe::run_native(
+            "FOV Preview - Colorant Rust",
+            options,
+            Box::new(|_cc| Ok(Box::new(window))),
+        ) {
             eprintln!("[FOV WINDOW] Error: {}", e);
         }
     });
