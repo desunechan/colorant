@@ -41,7 +41,7 @@ impl FovWindow {
         eframe::run_native(
             "FOV Preview - Colorant Rust",
             options,
-            Box::new(|_cc| Box::new(self)),
+            Box::new(|_cc| Ok(Box::new(self))), // FIXED: Added Ok()
         )
     }
 
@@ -137,58 +137,59 @@ impl eframe::App for FovWindow {
                     egui::vec2(available_size.x, available_size.x / aspect_ratio)
                 };
 
-                ui.centered_and_justified(|ui| {
-                    ui.image(&texture, display_size);
-                });
+                // FIXED: Use Image widget with size parameter
+                let image = egui::Image::new(&texture)
+                    .fit_to_exact_size(display_size);
+                
+                let response = ui.add(image);
+                let image_rect = response.rect;
 
                 // Pixel info on hover
                 if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                    if let Some(image_rect) = ui.clip_rect().intersect(ui.cursor().area().rect) {
-                        if image_rect.contains(pointer_pos) {
-                            // Calculate pixel coordinates
-                            let rel_x = (pointer_pos.x - image_rect.left()) / image_rect.width();
-                            let rel_y = (pointer_pos.y - image_rect.top()) / image_rect.height();
+                    if image_rect.contains(pointer_pos) {
+                        // Calculate pixel coordinates
+                        let rel_x = (pointer_pos.x - image_rect.left()) / image_rect.width();
+                        let rel_y = (pointer_pos.y - image_rect.top()) / image_rect.height();
+                        
+                        if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
+                            let pixel_x = (rel_x * width as f32) as u32;
+                            let pixel_y = (rel_y * height as f32) as u32;
                             
-                            if (0.0..=1.0).contains(&rel_x) && (0.0..=1.0).contains(&rel_y) {
-                                let pixel_x = (rel_x * width as f32) as u32;
-                                let pixel_y = (rel_y * height as f32) as u32;
-                                
-                                if pixel_x < width as u32 && pixel_y < height as u32 {
-                                    let idx = ((pixel_y * width as u32 + pixel_x) * 3) as usize;
-                                    if idx + 2 < rgba.len() {
-                                        let r = rgba[idx];
-                                        let g = rgba[idx + 1];
-                                        let b = rgba[idx + 2];
-                                        
-                                        egui::Window::new("Pixel Info")
-                                            .fixed_pos(pointer_pos + egui::vec2(10.0, 10.0))
-                                            .resizable(false)
-                                            .title_bar(false)
-                                            .show(ctx, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.label("📍");
-                                                    ui.label(format!("X: {}, Y: {}", pixel_x, pixel_y));
-                                                });
-                                                ui.horizontal(|ui| {
-                                                    ui.colored_label(
-                                                        egui::Color32::from_rgb(255, 0, 0),
-                                                        format!("R: {}", r),
-                                                    );
-                                                    ui.colored_label(
-                                                        egui::Color32::from_rgb(0, 255, 0),
-                                                        format!("G: {}", g),
-                                                    );
-                                                    ui.colored_label(
-                                                        egui::Color32::from_rgb(0, 0, 255),
-                                                        format!("B: {}", b),
-                                                    );
-                                                });
+                            if pixel_x < width as u32 && pixel_y < height as u32 {
+                                let idx = ((pixel_y * width as u32 + pixel_x) * 3) as usize;
+                                if idx + 2 < rgba.len() {
+                                    let r = rgba[idx];
+                                    let g = rgba[idx + 1];
+                                    let b = rgba[idx + 2];
+                                    
+                                    egui::Window::new("Pixel Info")
+                                        .fixed_pos(pointer_pos + egui::vec2(10.0, 10.0))
+                                        .resizable(false)
+                                        .title_bar(false)
+                                        .show(ctx, |ui| {
+                                            ui.horizontal(|ui| {
+                                                ui.label("📍");
+                                                ui.label(format!("X: {}, Y: {}", pixel_x, pixel_y));
+                                            });
+                                            ui.horizontal(|ui| {
                                                 ui.colored_label(
-                                                    egui::Color32::from_rgb(r, g, b),
-                                                    "█ Sample",
+                                                    egui::Color32::from_rgb(255, 0, 0),
+                                                    format!("R: {}", r),
+                                                );
+                                                ui.colored_label(
+                                                    egui::Color32::from_rgb(0, 255, 0),
+                                                    format!("G: {}", g),
+                                                );
+                                                ui.colored_label(
+                                                    egui::Color32::from_rgb(0, 0, 255),
+                                                    format!("B: {}", b),
                                                 );
                                             });
-                                    }
+                                            ui.colored_label(
+                                                egui::Color32::from_rgb(r, g, b),
+                                                "█ Sample",
+                                            );
+                                        });
                                 }
                             }
                         }

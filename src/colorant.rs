@@ -2,6 +2,9 @@ use anyhow::Result;
 use crate::capture::Capture;
 use crate::mouse::ArduinoMouse;
 use std::time::Duration;
+use std::sync::Arc;
+use parking_lot::Mutex;
+use image::RgbImage;
 use log::info;
 
 #[derive(Debug, Clone, Copy)]
