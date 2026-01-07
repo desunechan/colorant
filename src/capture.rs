@@ -1,12 +1,15 @@
-// src/capture.rs - FINAL WORKING VERSION
+// src/capture.rs - CORRECTED WORKING VERSION
 use anyhow::Result;
-use windows::Win32::Graphics::Gdi::{CreateDCW, DeleteDC, BitBlt, GetDIBits, SRCCOPY};
-use windows::Win32::Graphics::Gdi::{BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, RGBQUAD}; // REMOVED HBITMAP, HDC
-use windows::core::PCWSTR;
+use image::RgbImage;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use image::RgbImage;
+use windows::core::PCWSTR;
+use windows::Win32::Graphics::Gdi::{
+    CreateDCW, DeleteDC, BitBlt, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, 
+    RGBQUAD, DIB_RGB_COLORS, SRCCOPY, BI_RGB
+};
+use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CaptureConfig {
@@ -27,11 +30,6 @@ impl Default for CaptureConfig {
     }
 }
 
-println!("[CAPTURE] Attempting capture at x:{}, y:{}, {}x{}", 
-    config.x, config.y, config.width, config.height);
-println!("[CAPTURE] Screen dimensions: {:?}", 
-    (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)));
-    
 pub struct Capture {
     config: CaptureConfig,
     latest_frame: Arc<Mutex<Option<RgbImage>>>,
@@ -41,6 +39,12 @@ pub struct Capture {
 
 impl Capture {
     pub fn new(config: CaptureConfig) -> Result<Self> {
+        // Debug prints are correctly inside the function
+        println!("[CAPTURE] Attempting capture at x:{}, y:{}, {}x{}",
+            config.x, config.y, config.width, config.height);
+        println!("[CAPTURE] Screen dimensions: {:?}",
+            (unsafe { GetSystemMetrics(SM_CXSCREEN) }, unsafe { GetSystemMetrics(SM_CYSCREEN) }));
+        
         let capture = Self {
             config,
             latest_frame: Arc::new(Mutex::new(None)),
@@ -112,7 +116,7 @@ impl Capture {
                             biHeight: -(config.height as i32), // Negative for top-down
                             biPlanes: 1,
                             biBitCount: 24,
-                            biCompression: 0u32, // FIXED: Use 0 for BI_RGB instead of BI_RGB constant
+                            biCompression: BI_RGB.0, // Use the constant
                             biSizeImage: 0,
                             biXPelsPerMeter: 0,
                             biYPelsPerMeter: 0,

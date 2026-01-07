@@ -1,0 +1,1 @@
+C:\Users\Joseph\ -\ DLM\Downloads\c\c\colorant_rust\target\debug\libcolorant_rust.rlib: C:\Users\Joseph\ -\ DLM\Downloads\c\c\colorant_rust\src\capture.rs C:\Users\Joseph\ -\ DLM\Downloads\c\c\colorant_rust\src\colorant.rs C:\Users\Joseph\ -\ DLM\Downloads\c\c\colorant_rust\src\lib.rs C:\Users\Joseph\ -\ DLM\Downloads\c\c\colorant_rust\src\mouse.rs

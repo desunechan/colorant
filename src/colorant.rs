@@ -2,6 +2,7 @@ use anyhow::Result;
 use crate::capture::Capture;
 use crate::mouse::ArduinoMouse;
 use std::time::Duration;
+use log::info;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Config {

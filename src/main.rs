@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.calculate_speeds();
     
     println!("==========================================");
-    println!("🎮 Colorant Rust v{}", VERSION);
+    println!("🎮 Colorant Rust v{}", env!("CARGO_PKG_VERSION"));
     println!("==========================================");
     
     println!("📋 Configuration:");
