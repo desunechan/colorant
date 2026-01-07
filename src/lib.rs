@@ -7,7 +7,7 @@ pub mod fov_window;
 pub use capture::Capture;
 pub use colorant::{ColorantEngine, Config, Action};
 pub use mouse::ArduinoMouse;
-pub use fov_window::{spawn_fov_window, run_fov_window_blocking, FovWindow};
+pub use fov_window::{launch_fov_window, run_fov_window_blocking, FovWindow};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

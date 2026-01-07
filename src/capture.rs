@@ -1,17 +1,14 @@
-// src/capture.rs - CORRECTED WORKING VERSION
 use anyhow::Result;
 use image::RgbImage;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use windows::core::PCWSTR;
 use windows::Win32::Graphics::Gdi::{
-    CreateDCW, DeleteDC, BitBlt, GetDIBits, BITMAPINFO, BITMAPINFOHEADER,
-    GetDC, ReleaseDC, CreateCompatibleDC,
+    GetDIBits, BITMAPINFO, BITMAPINFOHEADER,
     RGBQUAD, DIB_RGB_COLORS, SRCCOPY, BI_RGB
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
-use windows::Win32::Foundation::{HWND, GetLastError};
+//use windows::Win32::Foundation::HWND;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CaptureConfig {
@@ -96,7 +93,7 @@ impl Capture {
                     let hwnd = HWND(0); // NULL = desktop window
                     let hdc_screen = GetDC(hwnd);
                     
-                    if hdc_screen.is_null() {
+                    if hdc_screen.0 == 0 {
                         eprintln!("[CAPTURE] Failed to get screen DC, error: {:?}", GetLastError());
                         std::thread::sleep(Duration::from_millis(100));
                         continue;
@@ -104,7 +101,7 @@ impl Capture {
                     
                     // Create compatible DC for bitmap operations
                     let hdc_mem = CreateCompatibleDC(hdc_screen);
-                    if hdc_mem.is_null() {
+                    if hdc_mem.0 == 0 {
                         eprintln!("[CAPTURE] Failed to create compatible DC");
                         ReleaseDC(hwnd, hdc_screen);
                         std::thread::sleep(Duration::from_millis(100));
@@ -118,7 +115,7 @@ impl Capture {
                         config.height as i32
                     );
                     
-                    if hbitmap.is_null() {
+                    if hbitmap.0 == 0 {
                         eprintln!("[CAPTURE] Failed to create bitmap");
                         windows::Win32::Graphics::Gdi::DeleteDC(hdc_mem);
                         ReleaseDC(hwnd, hdc_screen);
@@ -142,7 +139,7 @@ impl Capture {
                         SRCCOPY
                     );
                     
-                    if !success.as_bool() {
+                    if success.is_err() {
                         eprintln!("[CAPTURE] BitBlt failed, error: {:?}", GetLastError());
                         eprintln!("[CAPTURE] Region: x={}, y={}, {}x{}", 
                             config.x, config.y, config.width, config.height);
