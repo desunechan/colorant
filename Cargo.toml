@@ -29,6 +29,7 @@ windows = { version = "0.54", features = [
     "Win32_System_Memory",
     "Win32_Security",
     "Win32_System_ProcessStatus",
+    "Win32_Graphics_Gdi"
 ] }
 chrono = "0.4"
 serialport = "4.8"
