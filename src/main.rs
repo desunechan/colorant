@@ -76,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     spawn_fov_window(frame_handle);
-    
+
     println!("\n🎯 COLORANT SYSTEM ACTIVE");
     println!("=========================");
     println!("✅ Arduino connected");
@@ -125,81 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_f5_state = false;
     let mut last_f2_state = false;
     
-    loop {
-        // Check all keys at once
-        let (f1_pressed, f2_pressed, f5_pressed, should_move, alt_pressed) = unsafe {
-            use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
-            
-            (
-                (GetAsyncKeyState(VK_F1) & KEY_PRESSED_MASK) != 0,
-                (GetAsyncKeyState(VK_F2) & KEY_PRESSED_MASK) != 0,
-                (GetAsyncKeyState(VK_F5) & KEY_PRESSED_MASK) != 0,
-                (GetAsyncKeyState(VK_LSHIFT) & KEY_PRESSED_MASK) != 0 ||
-                (GetAsyncKeyState(VK_LBUTTON) & KEY_PRESSED_MASK) != 0 ||
-                (GetAsyncKeyState(VK_LCONTROL) & KEY_PRESSED_MASK) != 0 ||
-                (GetAsyncKeyState(VK_F) & KEY_PRESSED_MASK) != 0 ||
-                (GetAsyncKeyState(VK_SPACE) & KEY_PRESSED_MASK) != 0,
-                (GetAsyncKeyState(VK_LMENU) & KEY_PRESSED_MASK) != 0,
-            )
-        };
-        
-        // Handle F1 toggle
-        if f1_pressed && !last_f1_state {
-            let mut engine_lock = engine.lock().await;
-            let enabled = engine_lock.toggle();
-            println!("[HOTKEY] F1 pressed - Aimbot: {}", 
-                if enabled { "✅ ENABLED" } else { "⏸️  DISABLED" });
-        }
-        last_f1_state = f1_pressed;
-        
-        // Get engine state
-        let engine_enabled = {
-            let engine_lock = engine.lock().await;
-            engine_lock.is_enabled()
-        };
-        
-        // Monitor Vanguard (auto-toggle)
-        /*{
-            let mut engine_lock = engine.lock().await;
-            engine_lock.monitor_vanguard().await;
-        }*/
-        
-        if engine_enabled {
-            // Process movement - DO NOT spawn new threads
-            if should_move {
-                let mut engine_lock = engine.lock().await;
-                if let Err(e) = engine_lock.process_action(Action::Move).await {
-                    eprintln!("[ERROR] Move failed: {}", e);
-                }
-            }
-            
-            // Process Alt click
-            if alt_pressed {
-                let mut engine_lock = engine.lock().await;
-                if let Err(e) = engine_lock.process_action(Action::Click).await {
-                    eprintln!("[ERROR] Click failed: {}", e);
-                }
-            }
-            
-            // Process F5 flick
-            if f5_pressed && !last_f5_state {
-                let mut engine_lock = engine.lock().await;
-                if let Err(e) = engine_lock.process_action(Action::Flick).await {
-                    eprintln!("[ERROR] Flick failed: {}", e);
-                }
-            }
-        }
-        
-        last_f5_state = f5_pressed;
-        
-        // Handle F2 status
-        if f2_pressed && !last_f2_state {
-            println!("[STATUS] Aimbot: {}", 
-                if engine_enabled { "ACTIVE" } else { "INACTIVE" });
-        }
-        last_f2_state = f2_pressed;
-        
-        // Small delay
-        sleep(Duration::from_millis(10)).await;
-    }
+    println!("[SYSTEM] Starting FOV preview window...");
+    match colorant_rust::run_fov_window_blocking(frame_handle) {    
+    Ok(_) => println!("[FOV] Window closed normally"),
+    Err(e) => eprintln!("[FOV] Window error: {}", e),
 }

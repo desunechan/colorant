@@ -88,21 +88,22 @@ impl Capture {
                 }
                 
                 unsafe {
-                    // Use GetDC instead of CreateDCW for screen capture
-                    use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
-                    use windows::Win32::Foundation::HWND;
+                    // ========== CRITICAL FIX: Use correct DC functions ==========
+                    use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC, CreateCompatibleDC};
+                    use windows::Win32::Foundation::{HWND, GetLastError};
                     
-                    let hwnd = HWND(0); // Desktop window
+                    // Get screen DC (desktop)
+                    let hwnd = HWND(0); // NULL = desktop window
                     let hdc_screen = GetDC(hwnd);
                     
                     if hdc_screen.is_null() {
-                        eprintln!("[CAPTURE] Failed to get screen DC");
+                        eprintln!("[CAPTURE] Failed to get screen DC, error: {:?}", GetLastError());
                         std::thread::sleep(Duration::from_millis(100));
                         continue;
                     }
                     
-                    let hdc_mem = windows::Win32::Graphics::Gdi::CreateCompatibleDC(hdc_screen);
-                    
+                    // Create compatible DC for bitmap operations
+                    let hdc_mem = CreateCompatibleDC(hdc_screen);
                     if hdc_mem.is_null() {
                         eprintln!("[CAPTURE] Failed to create compatible DC");
                         ReleaseDC(hwnd, hdc_screen);
@@ -128,11 +129,7 @@ impl Capture {
                     // Select bitmap into memory DC
                     let _old_bitmap = windows::Win32::Graphics::Gdi::SelectObject(hdc_mem, hbitmap);
                     
-                    // Debug: Print what we're trying to capture
-                    println!("[CAPTURE] Capturing region: x={}, y={}, {}x{}", 
-                        config.x, config.y, config.width, config.height);
-                    
-                    // Copy screen region - FIXED: Use the correct BitBlt function
+                    // Perform the actual screen copy
                     let success = windows::Win32::Graphics::Gdi::BitBlt(
                         hdc_mem,
                         0,
@@ -146,11 +143,12 @@ impl Capture {
                     );
                     
                     if !success.as_bool() {
-                        let error = windows::Win32::Foundation::GetLastError();
-                        eprintln!("[CAPTURE] BitBlt failed with error: {:?}", error);
+                        eprintln!("[CAPTURE] BitBlt failed, error: {:?}", GetLastError());
+                        eprintln!("[CAPTURE] Region: x={}, y={}, {}x{}", 
+                            config.x, config.y, config.width, config.height);
                     }
                     
-                    // Get bitmap data
+                    // Get bitmap data (rest of your code is fine)
                     let mut bmi = BITMAPINFO {
                         bmiHeader: BITMAPINFOHEADER {
                             biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
@@ -180,15 +178,10 @@ impl Capture {
                         DIB_RGB_COLORS
                     );
                     
-                    // Debug: Check if we got data
-                    if lines_copied > 0 {
-                        // Check first pixel
-                        if buffer.len() >= 3 {
-                            println!("[CAPTURE DEBUG] First pixel BGR: ({}, {}, {})", 
-                                buffer[0], buffer[1], buffer[2]);
-                        }
-                    } else {
-                        eprintln!("[CAPTURE] GetDIBits failed, copied {} lines", lines_copied);
+                    // Debug: Check first few pixels
+                    if lines_copied > 0 && buffer.len() >= 9 {
+                        println!("[CAPTURE DEBUG] First pixel (BGR): ({}, {}, {})", 
+                            buffer[0], buffer[1], buffer[2]);
                     }
                     
                     // Convert BGR to RGB
@@ -202,23 +195,16 @@ impl Capture {
                     // Create image
                     if let Some(image) = RgbImage::from_raw(config.width, config.height, rgb_buffer) {
                         *frame_clone.lock() = Some(image);
-                        
-                        // Debug: Check image stats
-                        let avg_color: (u32, u32, u32) = image.pixels()
-                            .fold((0, 0, 0), |(r, g, b), pixel| 
-                                (r + pixel[0] as u32, g + pixel[1] as u32, b + pixel[2] as u32));
-                        let pixel_count = config.width * config.height;
-                        println!("[CAPTURE DEBUG] Average color: ({}, {}, {})", 
-                            avg_color.0 / pixel_count, 
-                            avg_color.1 / pixel_count, 
-                            avg_color.2 / pixel_count);
-                    } else {
-                        eprintln!("[CAPTURE] Failed to create image from buffer");
                     }
                     
-                    // Cleanup
+                    // ========== CRITICAL: Correct cleanup order ==========
+                    // 1. Deselect bitmap (optional but good practice)
+                    windows::Win32::Graphics::Gdi::SelectObject(hdc_mem, _old_bitmap);
+                    // 2. Delete bitmap
                     windows::Win32::Graphics::Gdi::DeleteObject(hbitmap);
+                    // 3. Delete memory DC
                     windows::Win32::Graphics::Gdi::DeleteDC(hdc_mem);
+                    // 4. Release screen DC
                     ReleaseDC(hwnd, hdc_screen);
                 }
                 
